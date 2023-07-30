@@ -1,0 +1,13 @@
+[package]
+name = "board-rust"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+diesel = "2.1.0"
+dotenv = "0.15.0"
+rocket = "0.4.11"
+rocket_contrib = "0.4.11"
+tera = "1.19.0"
