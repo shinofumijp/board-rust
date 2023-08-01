@@ -1,0 +1,7 @@
+<form action="/sign_in" method="post">
+    <input type="text" name="email" placeholder="email">
+    <input type="password" name="password" placeholder="password">
+    <input type="submit" value="Sign in">
+</form>
+
+<a href="/users/new">Sign up</a>

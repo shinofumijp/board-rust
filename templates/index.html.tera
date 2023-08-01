@@ -1,1 +1,6 @@
+<form action="/sign_out" method="post">
+    <input type="hidden" name="_method" value="DELETE">
+    <input type="submit" value="Sign out">
+</form>
+
 <p>user_id: {{user}}</p>

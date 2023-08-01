@@ -6,6 +6,7 @@ extern crate rocket;
 use bcrypt;
 use board_rust::db;
 use board_rust::models::post::Post;
+use board_rust::models::sign_in::SignInForm;
 use board_rust::models::user::{NewUser, User, UserForm};
 use diesel::ExpressionMethods;
 use diesel::QueryDsl;
@@ -20,7 +21,17 @@ use std::collections::HashMap;
 
 fn main() {
     rocket::ignite()
-        .mount("/", routes![index, new_user, create_user,])
+        .mount(
+            "/",
+            routes![
+                index,
+                new_user,
+                create_user,
+                sign_out,
+                sign_in,
+                sign_in_page
+            ],
+        )
         .attach(Template::fairing())
         .launch();
 }
@@ -51,8 +62,6 @@ fn index(cookies: Cookies) -> Result<Template, Redirect> {
         "posts".to_string(),
         serde_json::to_string(&post_list).unwrap(),
     );
-
-    println!("{:?}", context);
 
     // Render index page.
     Ok(Template::render("index", &context))
@@ -117,4 +126,45 @@ fn create_user(
     cookies.add_private(Cookie::new("user_id", user.id.to_string()));
 
     Ok(Redirect::to("/"))
+}
+
+#[get("/sign_in")]
+fn sign_in_page() -> Template {
+    let context = HashMap::<String, String>::new();
+    Template::render("sign_in", &context)
+}
+
+#[post("/sign_in", data = "<sign_in_form>")]
+fn sign_in(
+    mut cookies: Cookies,
+    sign_in_form: Form<SignInForm>,
+) -> Result<Redirect, Flash<Redirect>> {
+    // Get the database connection.
+    let mut conn = db::establish_connection().get().unwrap();
+
+    // Get the user from the database.
+    use board_rust::schema::users::dsl::*;
+    let user = users
+        .filter(email.eq(&sign_in_form.email))
+        .first::<User>(&mut conn)
+        .map_err(|_| Flash::error(Redirect::to("/sign_in"), "Invalid email or password."))?;
+
+    // Check the password.
+    if bcrypt::verify(&sign_in_form.password, &user.password).unwrap() {
+        // Set a cookie with the user's id.
+        cookies.add_private(Cookie::new("user_id", user.id.to_string()));
+
+        Ok(Redirect::to("/"))
+    } else {
+        Err(Flash::error(
+            Redirect::to("/sign_in"),
+            "Invalid email or password.",
+        ))
+    }
+}
+
+#[delete("/sign_out")]
+fn sign_out(mut cookies: Cookies) -> Redirect {
+    cookies.remove_private(Cookie::named("user_id"));
+    Redirect::to("/")
 }
