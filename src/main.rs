@@ -5,7 +5,7 @@ extern crate rocket;
 
 use bcrypt;
 use board_rust::db;
-use board_rust::models::post::Post;
+use board_rust::models::post::{NewPost, Post, PostForm};
 use board_rust::models::sign_in::SignInForm;
 use board_rust::models::user::{NewUser, User, UserForm};
 use diesel::ExpressionMethods;
@@ -29,7 +29,9 @@ fn main() {
                 create_user,
                 sign_out,
                 sign_in,
-                sign_in_page
+                sign_in_page,
+                create_post,
+                new_post,
             ],
         )
         .attach(Template::fairing())
@@ -167,4 +169,54 @@ fn sign_in(
 fn sign_out(mut cookies: Cookies) -> Redirect {
     cookies.remove_private(Cookie::named("user_id"));
     Redirect::to("/")
+}
+
+#[get("/posts/new")]
+fn new_post(cookies: Cookies) -> Result<Template, Redirect> {
+    // Check if the user has logged in.
+    let user = check_cookie(cookies);
+    if user.is_err() {
+        return Err(Redirect::to("/users/new"));
+    }
+
+    // Create context.
+    let mut context = HashMap::<String, String>::new();
+
+    // Insert user into context.
+    context.insert("user".to_string(), serde_json::to_string(&user).unwrap());
+
+    // Render new post page.
+    Ok(Template::render("posts/new", &context))
+}
+
+#[post("/posts", data = "<post_form>")]
+fn create_post(cookies: Cookies, post_form: Form<PostForm>) -> Result<Redirect, Flash<Redirect>> {
+    // Check if the user has logged in.
+    let user = check_cookie(cookies);
+    if user.is_err() {
+        return Err(Flash::error(
+            Redirect::to("/users/new"),
+            "You must sign in to post.",
+        ));
+    }
+
+    // Get the database connection.
+    let mut conn = db::establish_connection().get().unwrap();
+
+    // Create the new post.
+    let new_post = NewPost {
+        content: &post_form.content.to_string(),
+        published_at: chrono::Local::now().naive_local(),
+        user_id: user.unwrap().id,
+    };
+
+    use board_rust::schema::posts;
+
+    // Insert the new post into the database.
+    diesel::insert_into(posts::table)
+        .values(&new_post)
+        .execute(&mut conn)
+        .map_err(|_| Flash::error(Redirect::to("/posts/new"), "Failed to create post."))?;
+
+    Ok(Redirect::to("/"))
 }
