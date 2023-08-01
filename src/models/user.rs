@@ -3,6 +3,7 @@ use crate::schema::users;
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use rocket::request::FromForm;
+use serde::Serialize;
 use validator::ValidationError;
 use validator_derive::Validate;
 
@@ -16,7 +17,7 @@ pub struct UserForm {
     pub password: String,
 }
 
-#[derive(Queryable, Identifiable, Debug)]
+#[derive(Queryable, Identifiable, Debug, Serialize)]
 #[diesel(table_name = users)]
 pub struct User {
     pub id: i32,
