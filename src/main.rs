@@ -14,7 +14,6 @@ use diesel::RunQueryDsl;
 use rocket::http::{Cookie, Cookies};
 use rocket::request::Form;
 use rocket::response::{Flash, Redirect};
-use rocket::{get, post};
 use rocket_contrib::templates::Template;
 use serde_json;
 use std::collections::HashMap;
@@ -32,6 +31,8 @@ fn main() {
                 sign_in_page,
                 create_post,
                 new_post,
+                edit_post,
+                update_post,
             ],
         )
         .attach(Template::fairing())
@@ -217,6 +218,84 @@ fn create_post(cookies: Cookies, post_form: Form<PostForm>) -> Result<Redirect, 
         .values(&new_post)
         .execute(&mut conn)
         .map_err(|_| Flash::error(Redirect::to("/posts/new"), "Failed to create post."))?;
+
+    Ok(Redirect::to("/"))
+}
+
+#[get("/posts/<post_id>/edit")]
+fn edit_post(cookies: Cookies, post_id: i32) -> Result<Template, Flash<Redirect>> {
+    // Check if the user has logged in.
+    let user: User;
+    match check_cookie(cookies) {
+        Ok(u) => user = u,
+        Err(e) => return Err(Flash::error(Redirect::to("/users/new"), e)),
+    };
+
+    // Get the database connection.
+    let mut conn = db::establish_connection().get().unwrap();
+
+    // Get the post from the database.
+    use board_rust::schema::posts::dsl::*;
+    let post = posts
+        .filter(id.eq(post_id))
+        .filter(user_id.eq(user.id))
+        .first::<Post>(&mut conn)
+        .map_err(|_| Flash::error(Redirect::to("/"), "Failed to update post."))?;
+
+    // Check if the user is the author of the post.
+    if post.user_id != user.id {
+        return Err(Flash::error(
+            Redirect::to("/"),
+            "You are not the author of the post.",
+        ));
+    }
+
+    // Create context.
+    let mut context = HashMap::<String, String>::new();
+
+    // Insert user and post into context.
+    context.insert("user".to_string(), serde_json::to_string(&user).unwrap());
+    context.insert("post".to_string(), serde_json::to_string(&post).unwrap());
+    context.insert("update_path".to_string(), format!("/posts/{}", post.id));
+
+    // Render edit post page.
+    Ok(Template::render("posts/edit", &context))
+}
+
+#[post("/posts/<post_id>", data = "<post_form>")]
+fn update_post(
+    cookies: Cookies,
+    post_id: i32,
+    post_form: Form<PostForm>,
+) -> Result<Redirect, Flash<Redirect>> {
+    // Check if the user has logged in.
+    let user: User;
+    match check_cookie(cookies) {
+        Ok(u) => user = u,
+        Err(e) => return Err(Flash::error(Redirect::to("/users/new"), e)),
+    };
+
+    // Get the database connection.
+    let mut conn = db::establish_connection().get().unwrap();
+
+    // Get the post from the database.
+    use board_rust::schema::posts::dsl::*;
+    let post = posts
+        .filter(id.eq(post_id))
+        .filter(user_id.eq(user.id))
+        .first::<Post>(&mut conn)
+        .map_err(|_| Flash::error(Redirect::to("/"), "Failed to update post."))?;
+
+    // Update the post.
+    diesel::update(posts.find(id))
+        .set(content.eq(&post_form.content.to_string()))
+        .execute(&mut conn)
+        .map_err(|_| {
+            Flash::error(
+                Redirect::to(format!("/posts/{}/edit", post.id)),
+                "Failed to update post.",
+            )
+        })?;
 
     Ok(Redirect::to("/"))
 }
