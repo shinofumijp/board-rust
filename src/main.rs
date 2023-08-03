@@ -7,7 +7,7 @@ use bcrypt;
 use board_rust::db;
 use board_rust::models::post::{NewPost, Post, PostForm};
 use board_rust::models::sign_in::SignInForm;
-use board_rust::models::user::{NewUser, User, UserForm};
+use board_rust::models::user::{NewUser, ShowableUser, User, UserForm};
 use diesel::ExpressionMethods;
 use diesel::QueryDsl;
 use diesel::RunQueryDsl;
@@ -16,6 +16,7 @@ use rocket::request::Form;
 use rocket::response::{Flash, Redirect};
 use rocket_contrib::templates::Template;
 use serde_json;
+use serde_json::json;
 use std::collections::HashMap;
 
 fn main() {
@@ -42,29 +43,32 @@ fn main() {
 #[get("/")]
 fn index(cookies: Cookies) -> Result<Template, Redirect> {
     // Check if the user has logged in.
-    let user = check_cookie(cookies);
-    if user.is_err() {
-        return Err(Redirect::to("/users/new"));
-    }
-
-    // Create context.
-    let mut context = HashMap::<String, String>::new();
+    let user: User;
+    match check_cookie(cookies) {
+        Ok(u) => user = u,
+        Err(_) => return Err(Redirect::to("/users/new")),
+    };
+    let mut conn = db::establish_connection().get().unwrap();
 
     // Get list of posts.
     use board_rust::schema::posts::dsl::*;
-    let mut conn = db::establish_connection().get().unwrap();
-    let post_list = posts
+    use board_rust::schema::users::dsl::*;
+    let latest_posts = posts
+        .filter(published_at.is_not_null())
         .order(published_at.desc())
+        .inner_join(users)
         .limit(10)
-        .load::<Post>(&mut conn)
-        .expect("Error loading posts");
+        .load::<(Post, User)>(&mut conn)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(post, user)| (post.into(), user.into()))
+        .collect::<Vec<(Post, ShowableUser)>>();
 
-    // Insert user and post list into context.
-    context.insert("user".to_string(), serde_json::to_string(&user).unwrap());
-    context.insert(
-        "posts".to_string(),
-        serde_json::to_string(&post_list).unwrap(),
-    );
+    // Create context.
+    let context = json!({
+        "user": user,
+        "posts": latest_posts,
+    });
 
     // Render index page.
     Ok(Template::render("index", &context))

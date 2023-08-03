@@ -1,10 +1,12 @@
+use crate::models::user::User;
 use crate::schema::posts;
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use rocket::request::FromForm;
 use serde::Serialize;
 
-#[derive(Queryable, Serialize)]
+#[derive(Queryable, Serialize, Selectable, Identifiable, PartialEq, Associations, Debug)]
+#[diesel(belongs_to(User))]
 #[diesel(table_name = posts)]
 pub struct Post {
     pub id: i32,

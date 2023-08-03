@@ -17,7 +17,7 @@ pub struct UserForm {
     pub password: String,
 }
 
-#[derive(Queryable, Identifiable, Debug, Serialize)]
+#[derive(Queryable, Identifiable, Debug, Serialize, Selectable)]
 #[diesel(table_name = users)]
 pub struct User {
     pub id: i32,
@@ -34,6 +34,22 @@ pub struct NewUser<'a> {
     pub name: &'a String,
     pub email: &'a String,
     pub password: &'a String,
+}
+
+#[derive(Queryable, Identifiable, Debug, Serialize, Selectable)]
+#[diesel(table_name = users)]
+pub struct ShowableUser {
+    pub id: i32,
+    pub name: String,
+}
+
+impl From<User> for ShowableUser {
+    fn from(user: User) -> Self {
+        ShowableUser {
+            id: user.id,
+            name: user.name,
+        }
+    }
 }
 
 fn validate_email_unique(given_email: &str) -> Result<(), ValidationError> {

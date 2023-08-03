@@ -3,4 +3,16 @@
     <input type="submit" value="Sign out">
 </form>
 
-<p>user_id: {{user}}</p>
+{% for post in posts %}
+<div>
+    <p>{{ post.0.content }}</p>
+    <p>by {{ post.1.name }}</p>
+    {% if post.1.id == user.id %}
+    <a href="/posts/{{ post.0.id }}/edit">Edit</a>
+    <form action="/posts/{{ post.0.id }}" method="post">
+        <input type="hidden" name="_method" value="DELETE">
+        <input type="submit" value="Delete">
+    </form>
+    {% endif %}
+</div>
+{% endfor %}
