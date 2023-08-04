@@ -29,3 +29,12 @@ pub struct NewPost<'a> {
 pub struct PostForm {
     pub content: String,
 }
+
+impl Post {
+    pub fn find(post_id: i32) -> Option<Post> {
+        use crate::schema::posts::dsl::*;
+
+        let mut connection = crate::db::establish_connection().get().unwrap();
+        posts.find(post_id).first(&mut connection).ok()
+    }
+}

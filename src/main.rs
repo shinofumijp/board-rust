@@ -5,6 +5,7 @@ extern crate rocket;
 
 use bcrypt;
 use board_rust::db;
+use board_rust::models::like::Like;
 use board_rust::models::post::{NewPost, Post, PostForm};
 use board_rust::models::sign_in::SignInForm;
 use board_rust::models::user::{NewUser, ShowableUser, User, UserForm};
@@ -34,6 +35,8 @@ fn main() {
                 new_post,
                 edit_post,
                 update_post,
+                like_post,
+                unlike_post,
             ],
         )
         .attach(Template::fairing())
@@ -301,5 +304,65 @@ fn update_post(
             )
         })?;
 
+    Ok(Redirect::to("/"))
+}
+
+#[put("/posts/<path_post_id>/likes")]
+fn like_post(cookies: Cookies, path_post_id: i32) -> Result<Redirect, Flash<Redirect>> {
+    // Check if the user has logged in.
+    let user: User;
+    match check_cookie(cookies) {
+        Ok(u) => user = u,
+        Err(e) => return Err(Flash::error(Redirect::to("/users/new"), e)),
+    };
+
+    // Get the post from the database.
+    let post: Post;
+    if let Some(p) = Post::find(path_post_id) {
+        post = p;
+    } else {
+        return Err(Flash::error(Redirect::to("/"), "Failed to like post."));
+    }
+
+    // Check if the user has already liked the post.
+    if let Some(_like) = Like::get_by_user_and_post(user.id, post.id) {
+        return Err(Flash::error(Redirect::to("/"), "Failed to like post."));
+    }
+
+    if let Err(_) = Like::create(user.id, post.id) {
+        return Err(Flash::error(Redirect::to("/"), "Failed to like post."));
+    }
+
+    Ok(Redirect::to("/"))
+}
+
+#[delete("/posts/<path_post_id>/likes")]
+fn unlike_post(cookies: Cookies, path_post_id: i32) -> Result<Redirect, Flash<Redirect>> {
+    // Check if the user has logged in.
+    let user: User;
+    match check_cookie(cookies) {
+        Ok(u) => user = u,
+        Err(e) => return Err(Flash::error(Redirect::to("/users/new"), e)),
+    };
+
+    // Get the post from the database.
+    let post: Post;
+    if let Some(p) = Post::find(path_post_id) {
+        post = p;
+    } else {
+        return Err(Flash::error(Redirect::to("/"), "Failed to unlike post."));
+    }
+
+    // Check if the user has already liked the post.
+    let like: Like;
+    if let Some(l) = Like::get_by_user_and_post(user.id, post.id) {
+        like = l;
+    } else {
+        return Err(Flash::error(Redirect::to("/"), "Failed to unlike post."));
+    }
+
+    if let Err(_) = Like::delete(like.id) {
+        return Err(Flash::error(Redirect::to("/"), "Failed to unlike post."));
+    };
     Ok(Redirect::to("/"))
 }
